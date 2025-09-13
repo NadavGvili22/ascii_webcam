@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Webcam Art Generator</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --accent-color: #4a8fe7;
+            --control-bg: #2d2d2d;
+            --border-color: #404040;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: var(--accent-color);
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            max-width: 1200px;
+            margin: 0 auto;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                flex-direction: row;
+            }
+            
+            .controls {
+                flex: 1;
+                max-width: 300px;
+            }
+            
+            .preview {
+                flex: 2;
+                position: sticky;
+                top: 20px;
+                align-self: flex-start;
+            }
+        }
+
+        .panel {
+            background-color: var(--control-bg);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+        }
+
+        .panel-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--accent-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toggle {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider-toggle {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider-toggle:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider-toggle {
+            background-color: var(--accent-color);
+        }
+
+        input:checked + .slider-toggle:before {
+            transform: translateX(26px);
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        button:hover {
+            background-color: #3a7fd6;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        select, input[type="range"], input[type="color"] {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #3a3a3a;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            font-family: inherit;
+        }
+
+        input[type="range"] {
+            padding: 0;
+            height: 20px;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            border: none;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            background: #555;
+            border-radius: 3px;
+        }
+
+        input[type="range"]::-moz-range-track {
+            width: 100%;
+            height: 6px;
+            background: #555;
+            border-radius: 3px;
+            border: none;
+        }
+
+        .slider-value {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        canvas {
+            display: block;
+            background-color: black;
+            image-rendering: pixelated;
+            max-width: 100%;
+            margin: 0 auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .webcam-feed {
+            display: none;
+        }
+
+        .export-options {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .export-options button {
+            flex: 1;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>ASCII Webcam Art Generator</h1>
+        <p>Convert your webcam feed to ASCII art in real-time</p>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+            <div class="panel">
+                <div class="panel-title">
+                    <span>Webcam Controls</span>
+                </div>
+                <button id="startWebcam">Start Webcam</button>
+                <button id="stopWebcam" disabled>Stop Webcam</button>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">
+                    <span>Resolution</span>
+                </div>
+                <select id="resolution">
+                    <option value="75" selected>75×75</option>
+                    <option value="128">128×128</option>
+                    <option value="256">256×256</option>
+                </select>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">
+                    <span>ASCII Palette</span>
+                </div>
+                <select id="palette">
+                    <option value="minimal" selected>Minimal (10 chars)</option>
+                    <option value="medium">Medium (20 chars)</option>
+                    <option value="complex">Complex (70 chars)</option>
+                </select>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">
+                    <span>Color Mode</span>
+                </div>
+                <select id="colorMode">
+                    <option value="monochromeOnBlack" selected>Monochrome on Black</option>
+                    <option value="grayscale">Grayscale</option>
+                    <option value="sepia">Sepia</option>
+                    <option value="inverted">Inverted</option>
+                    <option value="color">Full Color</option>
+                </select>
+                <div class="control-group" id="monochromeColorGroup">
+                    <div class="control-label">
+                        <span>Text Color</span>
+                    </div>
+                    <input type="color" id="monochromeColor" value="#ffffff">
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">
+                    <span>Font Controls</span>
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Font Size</span>
+                        <span id="fontSizeValue" class="slider-value">8</span>
+                    </div>
+                    <input type="range" id="fontSize" min="4" max="20" value="8" step="1">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Space Density</span>
+                        <span id="spaceDensityValue" class="slider-value">1.0</span>
+                    </div>
+                    <input type="range" id="spaceDensity" min="0.5" max="2.0" value="1.0" step="0.1">
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">
+                    <span>Image Adjustments</span>
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Brightness</span>
+                        <span id="brightnessValue" class="slider-value">0</span>
+                    </div>
+                    <input type="range" id="brightness" min="-100" max="100" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Contrast</span>
+                        <span id="contrastValue" class="slider-value">0</span>
+                    </div>
+                    <input type="range" id="contrast" min="-100" max="100" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Saturation</span>
+                        <span id="saturationValue" class="slider-value">0</span>
+                    </div>
+                    <input type="range" id="saturation" min="-100" max="100" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Hue Rotation</span>
+                        <span id="hueValue" class="slider-value">0</span>
+                    </div>
+                    <input type="range" id="hue" min="0" max="360" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Sharpness</span>
+                        <span id="sharpnessValue" class="slider-value">0</span>
+                    </div>
+                    <input type="range" id="sharpness" min="0" max="100" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Edge Detection</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="edgeDetection">
+                            <span class="slider-toggle"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">
+                    <span>Export Options</span>
+                </div>
+                <div class="export-options">
+                    <button id="downloadPNG">Download PNG</button>
+                    <button id="copyHTML">Copy as HTML</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="preview">
+            <canvas id="asciiCanvas"></canvas>
+            <video id="webcamVideo" class="webcam-feed" autoplay playsinline></video>
+        </div>
+    </div>
+
+    <footer>
+        <p>ASCII Webcam Art Generator | Runs entirely in your browser - no server needed</p>
+    </footer>
+
+    <script>
+        // App state and configuration
+        const appState = {
+            isRunning: false,
+            resolution: 75,
+            palette: 'minimal',
+            colorMode: 'monochromeOnBlack',
+            monochromeColor: '#ffffff',
+            fontSize: 8,
+            spaceDensity: 1.0,
+            brightness: 0,
+            contrast: 0,
+            saturation: 0,
+            hue: 0,
+            sharpness: 0,
+            edgeDetection: false,
+            palettes: {
+                minimal: ' .:-=+*#%@',
+                medium: ' .\'`^",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$',
+                complex: ' .\'`^",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$'
+            }
+        };
+
+        // DOM elements
+        const elements = {
+            startWebcam: document.getElementById('startWebcam'),
+            stopWebcam: document.getElementById('stopWebcam'),
+            resolution: document.getElementById('resolution'),
+            palette: document.getElementById('palette'),
+            colorMode: document.getElementById('colorMode'),
+            monochromeColor: document.getElementById('monochromeColor'),
+            monochromeColorGroup: document.getElementById('monochromeColorGroup'),
+            fontSize: document.getElementById('fontSize'),
+            fontSizeValue: document.getElementById('fontSizeValue'),
+            spaceDensity: document.getElementById('spaceDensity'),
+            spaceDensityValue: document.getElementById('spaceDensityValue'),
+            brightness: document.getElementById('brightness'),
+            brightnessValue: document.getElementById('brightnessValue'),
+            contrast: document.getElementById('contrast'),
+            contrastValue: document.getElementById('contrastValue'),
+            saturation: document.getElementById('saturation'),
+            saturationValue: document.getElementById('saturationValue'),
+            hue: document.getElementById('hue'),
+            hueValue: document.getElementById('hueValue'),
+            sharpness: document.getElementById('sharpness'),
+            sharpnessValue: document.getElementById('sharpnessValue'),
+            edgeDetection: document.getElementById('edgeDetection'),
+            asciiCanvas: document.getElementById('asciiCanvas'),
+            webcamVideo: document.getElementById('webcamVideo'),
+            downloadPNG: document.getElementById('downloadPNG'),
+            copyHTML: document.getElementById('copyHTML')
+        };
+
+        // Canvas contexts
+        let videoContext, asciiContext;
+        let videoCanvas;
+
+        // Initialize the app
+        function init() {
+            setupEventListeners();
+            createOffscreenCanvas();
+            updateMonochromeColorVisibility();
+        }
+
+        // Set up UI event listeners
+        function setupEventListeners() {
+            elements.startWebcam.addEventListener('click', startWebcam);
+            elements.stopWebcam.addEventListener('click', stopWebcam);
+            
+            elements.resolution.addEventListener('change', () => {
+                appState.resolution = parseInt(elements.resolution.value);
+                resizeCanvases();
+            });
+            
+            elements.palette.addEventListener('change', () => {
+                appState.palette = elements.palette.value;
+            });
+            
+            elements.colorMode.addEventListener('change', () => {
+                appState.colorMode = elements.colorMode.value;
+                updateMonochromeColorVisibility();
+            });
+            
+            elements.monochromeColor.addEventListener('input', () => {
+                appState.monochromeColor = elements.monochromeColor.value;
+            });
+            
+            elements.fontSize.addEventListener('input', () => {
+                appState.fontSize = parseInt(elements.fontSize.value);
+                elements.fontSizeValue.textContent = appState.fontSize;
+                resizeCanvases();
+            });
+            
+            elements.spaceDensity.addEventListener('input', () => {
+                appState.spaceDensity = parseFloat(elements.spaceDensity.value);
+                elements.spaceDensityValue.textContent = appState.spaceDensity.toFixed(1);
+            });
+            
+            elements.brightness.addEventListener('input', () => {
+                appState.brightness = parseInt(elements.brightness.value);
+                elements.brightnessValue.textContent = appState.brightness;
+            });
+            
+            elements.contrast.addEventListener('input', () => {
+                appState.contrast = parseInt(elements.contrast.value);
+                elements.contrastValue.textContent = appState.contrast;
+            });
+            
+            elements.saturation.addEventListener('input', () => {
+                appState.saturation = parseInt(elements.saturation.value);
+                elements.saturationValue.textContent = appState.saturation;
+            });
+            
+            elements.hue.addEventListener('input', () => {
+                appState.hue = parseInt(elements.hue.value);
+                elements.hueValue.textContent = appState.hue;
+            });
+            
+            elements.sharpness.addEventListener('input', () => {
+                appState.sharpness = parseInt(elements.sharpness.value);
+                elements.sharpnessValue.textContent = appState.sharpness;
+            });
+            
+            elements.edgeDetection.addEventListener('change', () => {
+                appState.edgeDetection = elements.edgeDetection.checked;
+            });
+            
+            elements.downloadPNG.addEventListener('click', downloadPNG);
+            elements.copyHTML.addEventListener('click', copyAsHTML);
+        }
+
+        // Show/hide monochrome color picker based on color mode
+        function updateMonochromeColorVisibility() {
+            if (appState.colorMode === 'monochromeOnBlack') {
+                elements.monochromeColorGroup.style.display = 'block';
+            } else {
+                elements.monochromeColorGroup.style.display = 'none';
+            }
+        }
+
+        // Create offscreen canvas for video processing
+        function createOffscreenCanvas() {
+            videoCanvas = document.createElement('canvas');
+            videoContext = videoCanvas.getContext('2d');
+            asciiContext = elements.asciiCanvas.getContext('2d');
+            resizeCanvases();
+        }
+
+        // Resize canvases based on current settings
+        function resizeCanvases() {
+            const { resolution, fontSize } = appState;
+            
+            // Set video canvas size to the selected resolution
+            videoCanvas.width = resolution;
+            videoCanvas.height = resolution;
+            
+            // Set ASCII canvas size (font size × resolution)
+            elements.asciiCanvas.width = resolution * fontSize;
+            elements.asciiCanvas.height = resolution * fontSize;
+            
+            // Set font for ASCII canvas
+            asciiContext.font = `${fontSize}px monospace`;
+            asciiContext.textBaseline = 'top';
+        }
+
+        // Start webcam feed
+        async function startWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                elements.webcamVideo.srcObject = stream;
+                elements.startWebcam.disabled = true;
+                elements.stopWebcam.disabled = false;
+                appState.isRunning = true;
+                
+                // Start processing frames
+                processVideo();
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                alert('Could not access your webcam. Please check permissions and try again.');
+            }
+        }
+
+        // Stop webcam feed
+        function stopWebcam() {
+            const stream = elements.webcamVideo.srcObject;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                elements.webcamVideo.srcObject = null;
+            }
+            
+            elements.startWebcam.disabled = false;
+            elements.stopWebcam.disabled = true;
+            appState.isRunning = false;
+            
+            // Clear the canvas
+            asciiContext.fillStyle = 'black';
+            asciiContext.fillRect(0, 0, elements.asciiCanvas.width, elements.asciiCanvas.height);
+        }
+
+        // Process video frames and convert to ASCII
+        function processVideo() {
+            if (!appState.isRunning) return;
+            
+            // Draw current video frame to processing canvas
+            videoContext.drawImage(
+                elements.webcamVideo, 
+                0, 0, videoCanvas.width, videoCanvas.height
+            );
+            
+            // Get image data for processing
+            let imageData = videoContext.getImageData(0, 0, videoCanvas.width, videoCanvas.height);
+            
+            // Apply filters
+            imageData = applyFilters(imageData);
+            
+            // Convert to ASCII
+            renderAsASCII(imageData);
+            
+            // Continue processing
+            requestAnimationFrame(processVideo);
+        }
+
+        // Apply image filters based on current settings
+        function applyFilters(imageData) {
+            const data = imageData.data;
+            const length = data.length;
+            
+            // Apply brightness and contrast
+            if (appState.brightness !== 0 || appState.contrast !== 0) {
+                const factor = (259 * (appState.contrast + 255)) / (255 * (259 - appState.contrast));
+                
+                for (let i = 0; i < length; i += 4) {
+                    // Brightness and contrast adjustment
+                    data[i] = clamp(factor * (data[i] - 128) + 128 + appState.brightness);
+                    data[i + 1] = clamp(factor * (data[i + 1] - 128) + 128 + appState.brightness);
+                    data[i + 2] = clamp(factor * (data[i + 2] - 128) + 128 + appState.brightness);
+                }
+            }
+            
+            // Apply saturation
+            if (appState.saturation !== 0) {
+                const saturationFactor = appState.saturation / 100 + 1;
+                
+                for (let i = 0; i < length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
+                    
+                    data[i] = clamp(gray + saturationFactor * (r - gray));
+                    data[i + 1] = clamp(gray + saturationFactor * (g - gray));
+                    data[i + 2] = clamp(gray + saturationFactor * (b - gray));
+                }
+            }
+            
+            // Apply hue rotation
+            if (appState.hue !== 0) {
+                const hueRad = appState.hue * Math.PI / 180;
+                const cos = Math.cos(hueRad);
+                const sin = Math.sin(hueRad);
+                
+                for (let i = 0; i < length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    
+                    data[i] = clamp(r * (cos + (1 - cos) / 3) + g * ((1 - cos) / 3 - Math.sqrt(3) * sin / 3) + b * ((1 - cos) / 3 + Math.sqrt(3) * sin / 3));
+                    data[i + 1] = clamp(r * ((1 - cos) / 3 + Math.sqrt(3) * sin / 3) + g * (cos + (1 - cos) / 3) + b * ((1 - cos) / 3 - Math.sqrt(3) * sin / 3));
+                    data[i + 2] = clamp(r * ((1 - cos) / 3 - Math.sqrt(3) * sin / 3) + g * ((1 - cos) / 3 + Math.sqrt(3) * sin / 3) + b * (cos + (1 - cos) / 3));
+                }
+            }
+            
+            // Edge detection (simple implementation)
+            if (appState.edgeDetection) {
+                // This is a simplified edge detection - a real implementation would use convolution
+                const edgeData = new Uint8ClampedArray(data);
+                const width = imageData.width;
+                const height = imageData.height;
+                
+                for (let y = 1; y < height - 1; y++) {
+                    for (let x = 1; x < width - 1; x++) {
+                        const idx = (y * width + x) * 4;
+                        
+                        // Simple gradient calculation
+                        const leftIdx = (y * width + (x - 1)) * 4;
+                        const rightIdx = (y * width + (x + 1)) * 4;
+                        const topIdx = ((y - 1) * width + x) * 4;
+                        const bottomIdx = ((y + 1) * width + x) * 4;
+                        
+                        const dxr = data[rightIdx] - data[leftIdx];
+                        const dyg = data[bottomIdx + 1] - data[topIdx + 1];
+                        const dzb = data[bottomIdx + 2] - data[topIdx + 2];
+                        
+                        const magnitude = Math.min(255, Math.sqrt(dxr * dxr + dyg * dyg + dzb * dzb) * 2);
+                        
+                        edgeData[idx] = magnitude;
+                        edgeData[idx + 1] = magnitude;
+                        edgeData[idx + 2] = magnitude;
+                    }
+                }
+                
+                return new ImageData(edgeData, width, height);
+            }
+            
+            return imageData;
+        }
+
+        // Render image data as ASCII art
+        function renderAsASCII(imageData) {
+            const { data, width, height } = imageData;
+            const palette = appState.palettes[appState.palette];
+            const paletteLength = palette.length;
+            
+            // Clear canvas based on color mode
+            if (appState.colorMode === 'monochromeOnBlack' || appState.colorMode === 'inverted') {
+                asciiContext.fillStyle = appState.colorMode === 'monochromeOnBlack' ? 'black' : 'white';
+                asciiContext.fillRect(0, 0, elements.asciiCanvas.width, elements.asciiCanvas.height);
+            }
+            
+            // Render each pixel as a character
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    const r = data[idx];
+                    const g = data[idx + 1];
+                    const b = data[idx + 2];
+                    
+                    // Calculate brightness (luminance)
+                    const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                    
+                    // Map brightness to character from palette
+                    let charIndex = Math.floor(brightness * paletteLength * appState.spaceDensity);
+                    charIndex = Math.min(paletteLength - 1, charIndex);
+                    const char = palette.charAt(charIndex);
+                    
+                    // Set color based on color mode
+                    let fillColor;
+                    switch (appState.colorMode) {
+                        case 'monochromeOnBlack':
+                            fillColor = appState.monochromeColor;
+                            break;
+                        case 'grayscale':
+                            fillColor = `rgb(${r}, ${g}, ${b})`;
+                            break;
+                        case 'sepia':
+                            fillColor = `rgb(${clamp(r * 0.393 + g * 0.769 + b * 0.189)}, 
+                                            ${clamp(r * 0.349 + g * 0.686 + b * 0.168)}, 
+                                            ${clamp(r * 0.272 + g * 0.534 + b * 0.131)})`;
+                            break;
+                        case 'inverted':
+                            fillColor = `rgb(${255 - r}, ${255 - g}, ${255 - b})`;
+                            break;
+                        case 'color':
+                            fillColor = `rgb(${r}, ${g}, ${b})`;
+                            break;
+                        default:
+                            fillColor = appState.monochromeColor;
+                    }
+                    
+                    asciiContext.fillStyle = fillColor;
+                    
+                    // Draw the character
+                    asciiContext.fillText(
+                        char, 
+                        x * appState.fontSize, 
+                        y * appState.fontSize
+                    );
+                }
+            }
+        }
+
+        // Download ASCII art as PNG
+        function downloadPNG() {
+            const link = document.createElement('a');
+            link.download = 'ascii-webcam.png';
+            link.href = elements.asciiCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Copy ASCII art as HTML
+        function copyAsHTML() {
+            // Create a temporary canvas to get pixel data
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = elements.asciiCanvas.width;
+            tempCanvas.height = elements.asciiCanvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(elements.asciiCanvas, 0, 0);
+            
+            // This is a simplified version - a real implementation would need to
+            // capture the actual text content and colors
+            const dataURL = elements.asciiCanvas.toDataURL('image/png');
+            
+            // Create HTML content with the image
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>ASCII Webcam Art</title>
+                    <style>
+                        body { 
+                            background-color: black; 
+                            display: flex; 
+                            justify-content: center; 
+                            align-items: center; 
+                            height: 100vh; 
+                            margin: 0; 
+                        }
+                    </style>
+                </head>
+                <body>
+                    <img src="${dataURL}" alt="ASCII Webcam Art">
+                </body>
+                </html>
+            `;
+            
+            // Copy to clipboard
+            navigator.clipboard.writeText(htmlContent).then(() => {
+                alert('HTML copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                alert('Failed to copy HTML to clipboard.');
+            });
+        }
+
+        // Utility function to clamp values between 0-255
+        function clamp(value) {
+            return Math.max(0, Math.min(255, value));
+        }
+
+        // Initialize the app when the page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
